@@ -155,6 +155,7 @@ struct ChatView: View {
                             }
                         )
                     }
+                }
                 
                 // Undo Toast
                 if showUndoToast {

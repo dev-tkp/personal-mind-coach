@@ -251,8 +251,11 @@ class ChatViewModel {
         message.isDeleted = true
         
         // 자식 메시지들도 삭제
+        let messageId = message.id
         let childrenDescriptor = FetchDescriptor<Message>(
-            predicate: #Predicate<Message> { $0.parentId == message.id && !$0.isDeleted }
+            predicate: #Predicate<Message> { message in
+                message.parentId == messageId && !message.isDeleted
+            }
         )
         
         if let children = try? modelContext.fetch(childrenDescriptor) {
@@ -288,8 +291,11 @@ class ChatViewModel {
         message.isDeleted = false
         
         // 자식 메시지들도 복원
+        let messageId = message.id
         let childrenDescriptor = FetchDescriptor<Message>(
-            predicate: #Predicate<Message> { $0.parentId == message.id && $0.isDeleted }
+            predicate: #Predicate<Message> { message in
+                message.parentId == messageId && message.isDeleted
+            }
         )
         
         if let children = try? modelContext.fetch(childrenDescriptor) {
