@@ -37,7 +37,11 @@ struct MessageInputBar: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
-        .background(Color(uiColor: .systemBackground))
+        #if canImport(UIKit)
+        .background(Color(UIColor.systemBackground))
+        #else
+        .background(Color(.background))
+        #endif
         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: -2)
     }
 }

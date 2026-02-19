@@ -36,13 +36,23 @@ struct BranchIndicator: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(Color(uiColor: .systemGray6))
+            #if canImport(UIKit)
+            .background(Color(UIColor.systemGray6))
             .overlay(
                 Rectangle()
                     .frame(height: 1)
-                    .foregroundColor(Color(uiColor: .separator)),
+                    .foregroundColor(Color(UIColor.separator)),
                 alignment: .bottom
             )
+            #else
+            .background(Color.gray.opacity(0.1))
+            .overlay(
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundColor(Color.gray.opacity(0.3)),
+                alignment: .bottom
+            )
+            #endif
         }
     }
 }

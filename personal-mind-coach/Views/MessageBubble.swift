@@ -31,7 +31,13 @@ struct MessageBubble: View {
                     .background(
                         message.messageRole == .user
                             ? Color.blue
-                            : Color(uiColor: .systemGray5)
+                            : {
+                                #if canImport(UIKit)
+                                return Color(UIColor.systemGray5)
+                                #else
+                                return Color.gray.opacity(0.2)
+                                #endif
+                            }()
                     )
                     .foregroundColor(
                         message.messageRole == .user
