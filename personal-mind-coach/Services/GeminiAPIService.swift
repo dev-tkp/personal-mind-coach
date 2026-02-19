@@ -10,15 +10,24 @@ import Foundation
 @MainActor
 class GeminiAPIService: ObservableObject {
     private let baseURL = "https://generativelanguage.googleapis.com/v1beta/models"
-    private let model = "gemini-2.5-pro"
+    private let model = "gemini-3-flash-preview"  // gemini-3-flash-preview 또는 gemini-2.5-pro 사용 가능
     
     private var apiKey: String {
         get throws {
+            // 1. Keychain에서 API 키 확인
             if let key = try? KeychainService.load(), !key.isEmpty {
                 return key
             }
-            // 기본 API 키 (나중에 Keychain에 저장하도록 안내)
-            return "AIzaSyD95zh3JhAmO3wIrt-RDSX6IIQ4y_V7-q0"
+            
+            // 2. 환경변수에서 API 키 확인
+            if let envKey = ProcessInfo.processInfo.environment["GEMINI_API_KEY"], !envKey.isEmpty {
+                // 환경변수에서 찾은 키를 Keychain에 저장
+                try? KeychainService.save(envKey)
+                return envKey
+            }
+            
+            // 3. API 키가 없으면 에러 발생
+            throw GeminiAPIError.unauthorized
         }
     }
     
