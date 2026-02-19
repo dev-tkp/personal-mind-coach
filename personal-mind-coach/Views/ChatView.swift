@@ -170,8 +170,11 @@ struct ChatView: View {
                 }
             }
             .navigationTitle("마인드 코치")
+            #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
+                #if !os(macOS)
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         // 설정 화면으로 이동 (나중에 구현)
@@ -181,6 +184,17 @@ struct ChatView: View {
                     }
                     .accessibilityLabel("설정")
                 }
+                #else
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        // 설정 화면으로 이동 (나중에 구현)
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .foregroundColor(.blue)
+                    }
+                    .accessibilityLabel("설정")
+                }
+                #endif
             }
             .onAppear {
                 viewModel.setup(modelContext: modelContext)

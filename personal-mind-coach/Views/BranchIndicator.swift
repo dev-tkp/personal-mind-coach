@@ -33,11 +33,11 @@ struct BranchIndicator: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(Color(uiColor: .systemGray6))
+            .background(Color(.systemGray6))
             .overlay(
                 Rectangle()
                     .frame(height: 1)
-                    .foregroundColor(Color(uiColor: .separator)),
+                    .foregroundColor(Color(.separator)),
                 alignment: .bottom
             )
         }

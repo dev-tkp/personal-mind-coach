@@ -21,7 +21,9 @@ class BranchPathService {
         
         while let id = currentId {
             let descriptor = FetchDescriptor<Message>(
-                predicate: #Predicate<Message> { $0.id == id && !$0.isDeleted }
+                predicate: #Predicate<Message> { msg in
+                    msg.id == id && !msg.isDeleted
+                }
             )
             
             guard let message = try? modelContext.fetch(descriptor).first else {
@@ -41,7 +43,9 @@ class BranchPathService {
         in modelContext: ModelContext
     ) -> [Message] {
         let descriptor = FetchDescriptor<Message>(
-            predicate: #Predicate<Message> { $0.parentId == messageId && !$0.isDeleted },
+            predicate: #Predicate<Message> { msg in
+                msg.parentId == messageId && !msg.isDeleted
+            },
             sortBy: [SortDescriptor(\.createdAt, order: .forward)]
         )
         

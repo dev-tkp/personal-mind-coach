@@ -34,7 +34,7 @@ struct MessageInputBar: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
-        .background(Color(uiColor: .systemBackground))
+        .background(Color(.systemBackground))
         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: -2)
     }
 }
