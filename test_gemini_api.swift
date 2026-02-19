@@ -13,6 +13,7 @@ if let envKey = ProcessInfo.processInfo.environment["GEMINI_API_KEY"], !envKey.i
     print("사용법: GEMINI_API_KEY=\"your-api-key\" swift test_gemini_api.swift")
     exit(1)
 }
+
 let baseURL = "https://generativelanguage.googleapis.com/v1beta/models"
 let model = "gemini-3-flash-preview"
 
