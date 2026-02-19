@@ -15,13 +15,15 @@ struct BranchIndicator: View {
         if !branchPath.isEmpty {
             HStack {
                 Button(action: onReturnToMain) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 6) {
                         Image(systemName: "arrow.left")
                         Text("메인으로 돌아가기")
                     }
-                    .font(.caption)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
                     .foregroundColor(.blue)
                 }
+                .accessibilityLabel("메인으로 돌아가기")
                 
                 Spacer()
                 
@@ -29,9 +31,15 @@ struct BranchIndicator: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(Color.gray.opacity(0.1))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color(uiColor: .systemGray6))
+            .overlay(
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundColor(Color(uiColor: .separator)),
+                alignment: .bottom
+            )
         }
     }
 }

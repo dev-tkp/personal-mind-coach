@@ -22,12 +22,13 @@ struct MessageBubble: View {
             
             VStack(alignment: message.messageRole == .user ? .trailing : .leading, spacing: 4) {
                 Text(message.content)
+                    .font(.body)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(
                         message.messageRole == .user
                             ? Color.blue
-                            : Color.gray.opacity(0.2)
+                            : Color(uiColor: .systemGray5)
                     )
                     .foregroundColor(
                         message.messageRole == .user
@@ -35,9 +36,12 @@ struct MessageBubble: View {
                             : .primary
                     )
                     .cornerRadius(16)
+                    .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
                     .onLongPressGesture {
                         showDeleteConfirmation = true
                     }
+                    .accessibilityLabel(message.messageRole == .user ? "사용자 메시지" : "상담가 응답")
+                    .accessibilityHint("길게 눌러 삭제할 수 있습니다")
                 
                 if message.messageRole == .model, let onBranchTap = onBranchTap {
                     BranchButton(messageId: message.id, onTap: {

@@ -18,19 +18,24 @@ struct MessageInputBar: View {
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1...5)
                 .disabled(isLoading)
+                .accessibilityLabel("메시지 입력창")
             
             Button {
                 guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
                 onSend(text)
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 28))
+                    .font(.system(size: 32))
                     .foregroundColor(text.isEmpty || isLoading ? .gray : .blue)
             }
             .disabled(text.isEmpty || isLoading)
+            .accessibilityLabel("전송")
+            .accessibilityHint(text.isEmpty ? "메시지를 입력하세요" : "메시지 전송")
         }
-        .padding()
-        .background(Color(.systemBackground))
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color(uiColor: .systemBackground))
+        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: -2)
     }
 }
 
