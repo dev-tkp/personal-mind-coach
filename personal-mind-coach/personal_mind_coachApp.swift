@@ -6,12 +6,14 @@
 //
 
 import SwiftUI
+import SwiftData
 
 @main
 struct personal_mind_coachApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ChatView()
         }
+        .modelContainer(for: [Message.self, Session.self])
     }
 }
