@@ -161,9 +161,10 @@ POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateCon
 
 **인증:**
 
-- API Key: `AIzaSyD95zh3JhAmO3wIrt-RDSX6IIQ4y_V7-q0`
+- API Key: `{YOUR_API_KEY}` (환경변수 `GEMINI_API_KEY` 또는 Keychain에서 로드)
 - 헤더: `x-goog-api-key: {API_KEY}`
 - API 키는 Keychain에 저장하여 보안 강화
+- **주의**: API 키는 절대 코드나 문서에 하드코딩하지 마세요
 
 ### 9.2 요청 형식
 
