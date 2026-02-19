@@ -13,11 +13,14 @@ import SwiftUI
 @Observable
 class ChatViewModel {
     private let apiService = GeminiAPIService()
+    private let backgroundExtractor = BackgroundExtractor()
     private var modelContext: ModelContext?
     
     var currentSession: Session?
     var isLoading = false
     var errorMessage: String?
+    private var messageCountSinceLastBackgroundUpdate = 0
+    private let backgroundUpdateInterval = 5  // 5턴마다 백그라운드 업데이트
     
     func setup(modelContext: ModelContext) {
         self.modelContext = modelContext
@@ -50,6 +53,49 @@ class ChatViewModel {
         return (try? modelContext.fetch(descriptor)) ?? []
     }
     
+    func getLatestBackground() -> Background? {
+        guard let modelContext = modelContext else { return nil }
+        
+        let descriptor = FetchDescriptor<Background>(
+            sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
+        )
+        
+        return try? modelContext.fetch(descriptor).first
+    }
+    
+    private func updateBackground() async {
+        guard let modelContext = modelContext else { return }
+        
+        let messages = getMessages()
+        guard !messages.isEmpty else { return }
+        
+        let previousBackground = getLatestBackground()
+        
+        do {
+            let summaryText = try await backgroundExtractor.extractBackground(
+                from: messages,
+                previousBackground: previousBackground
+            )
+            
+            let sourceMessageIds = messages.map { $0.id }
+            let newVersion = (previousBackground?.version ?? 0) + 1
+            
+            let newBackground = Background(
+                summaryText: summaryText,
+                sourceMessageIds: sourceMessageIds
+            )
+            newBackground.version = newVersion
+            
+            modelContext.insert(newBackground)
+            try modelContext.save()
+            
+            messageCountSinceLastBackgroundUpdate = 0
+        } catch {
+            print("백그라운드 업데이트 실패: \(error.localizedDescription)")
+            // 백그라운드 업데이트 실패는 치명적이지 않으므로 계속 진행
+        }
+    }
+    
     func sendMessage(_ text: String) async {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               let modelContext = modelContext else { return }
@@ -73,7 +119,10 @@ class ChatViewModel {
         do {
             let allMessages = getMessages()
             let messageContents = buildMessageContents(from: allMessages)
-            let systemPrompt = SystemPrompt.buildPrompt()
+            let latestBackground = getLatestBackground()
+            let systemPrompt = SystemPrompt.buildPrompt(
+                backgroundSummary: latestBackground?.summaryText
+            )
             
             let responseText = try await apiService.generateContent(
                 messages: messageContents,
@@ -91,6 +140,12 @@ class ChatViewModel {
             }
             
             try modelContext.save()
+            
+            // 백그라운드 업데이트 (주기적으로)
+            messageCountSinceLastBackgroundUpdate += 1
+            if messageCountSinceLastBackgroundUpdate >= backgroundUpdateInterval {
+                await updateBackground()
+            }
         } catch {
             errorMessage = error.localizedDescription
             // 사용자 메시지는 이미 저장되었으므로 그대로 둠

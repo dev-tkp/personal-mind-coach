@@ -92,5 +92,5 @@ struct ChatView: View {
 
 #Preview {
     ChatView()
-        .modelContainer(for: [Message.self, Session.self])
+        .modelContainer(for: [Message.self, Session.self, Background.self, ConversationSummary.self])
 }

@@ -14,6 +14,6 @@ struct personal_mind_coachApp: App {
         WindowGroup {
             ChatView()
         }
-        .modelContainer(for: [Message.self, Session.self])
+        .modelContainer(for: [Message.self, Session.self, Background.self, ConversationSummary.self])
     }
 }
