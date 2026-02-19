@@ -32,9 +32,21 @@ class GeminiAPIService: ObservableObject {
         for attempt in 0..<maxRetries {
             do {
                 return try await performRequest(messages: messages, systemInstruction: systemInstruction)
-            } catch GeminiAPIError.rateLimitExceeded {
+            } catch let error as GeminiAPIError {
                 lastError = error
-                if attempt < maxRetries - 1 {
+                
+                // Rate limit 또는 서버 에러(500)인 경우 재시도
+                let shouldRetry: Bool
+                switch error {
+                case .rateLimitExceeded:
+                    shouldRetry = true
+                case .serverError(let code) where code == 500:
+                    shouldRetry = true
+                default:
+                    shouldRetry = false
+                }
+                
+                if shouldRetry && attempt < maxRetries - 1 {
                     // Exponential backoff: 2^attempt 초 대기
                     let delay = pow(2.0, Double(attempt))
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
@@ -43,12 +55,6 @@ class GeminiAPIService: ObservableObject {
                 throw error
             } catch {
                 lastError = error
-                if attempt < maxRetries - 1 && (error as? GeminiAPIError) == .serverError(500) {
-                    // 서버 에러의 경우 재시도
-                    let delay = pow(2.0, Double(attempt))
-                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                    continue
-                }
                 throw error
             }
         }
