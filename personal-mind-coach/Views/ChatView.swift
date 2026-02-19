@@ -85,7 +85,7 @@ struct ChatView: View {
                     // 입력 바
                     if showBranchInput {
                         VStack(spacing: 8) {
-                        HStack {
+                            HStack {
                             Text("브랜치 질문:")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -113,9 +113,9 @@ struct ChatView: View {
                                     selectedBranchMessageId = nil
                                 }
                             }
-                        )
-                    }
-                } else {
+                            )
+                        }
+                    } else {
                     MessageInputBar(
                         text: $inputText,
                         isLoading: viewModel.isLoading,
