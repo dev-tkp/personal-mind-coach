@@ -199,13 +199,18 @@ struct ChatView: View {
             .onAppear {
                 viewModel.setup(modelContext: modelContext)
             }
-            .alert("오류", isPresented: .constant(viewModel.errorMessage != nil)) {
-                Button("확인") {
+            .alert("오류", isPresented: Binding(
+                get: { viewModel.errorMessage != nil },
+                set: { if !$0 { viewModel.errorMessage = nil } }
+            )) {
+                Button("확인", role: .cancel) {
                     viewModel.errorMessage = nil
                 }
             } message: {
                 if let error = viewModel.errorMessage {
                     Text(error)
+                } else {
+                    Text("알 수 없는 오류가 발생했습니다.")
                 }
             }
         }

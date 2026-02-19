@@ -120,14 +120,21 @@ class GeminiAPIService: ObservableObject {
         AppLogger.api.debug("📥 Gemini API Response Status: \(httpResponse.statusCode)")
         
         guard (200...299).contains(httpResponse.statusCode) else {
+            // 에러 응답 본문 로깅
+            if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let errorInfo = errorData["error"] as? [String: Any] {
+                let errorMessage = errorInfo["message"] as? String ?? "알 수 없는 에러"
+                let errorStatus = errorInfo["status"] as? String ?? "UNKNOWN"
+                AppLogger.api.error("❌ API 에러 (\(httpResponse.statusCode)): \(errorStatus) - \(errorMessage)")
+            } else if let errorString = String(data: data, encoding: .utf8) {
+                AppLogger.api.error("❌ API 에러 응답 (\(httpResponse.statusCode)): \(errorString.prefix(500))")
+            }
+            
             if httpResponse.statusCode == 429 {
                 throw GeminiAPIError.rateLimitExceeded
             } else if httpResponse.statusCode == 401 {
                 throw GeminiAPIError.unauthorized
             } else if httpResponse.statusCode == 400 {
-                if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    print("❌ Bad Request Error: \(errorData)")
-                }
                 throw GeminiAPIError.badRequest
             } else {
                 throw GeminiAPIError.serverError(httpResponse.statusCode)
@@ -135,10 +142,22 @@ class GeminiAPIService: ObservableObject {
         }
         
         let decoder = JSONDecoder()
-        let responseModel = try decoder.decode(GeminiResponse.self, from: data)
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        
+        let responseModel: GeminiResponse
+        do {
+            responseModel = try decoder.decode(GeminiResponse.self, from: data)
+        } catch {
+            AppLogger.api.error("❌ JSON 디코딩 실패: \(error.localizedDescription)")
+            if let jsonString = String(data: data, encoding: .utf8) {
+                AppLogger.api.error("응답 데이터: \(jsonString.prefix(1000))")
+            }
+            throw GeminiAPIError.decodingError
+        }
         
         guard let candidate = responseModel.candidates.first,
               let text = candidate.content.parts.first?.text else {
+            AppLogger.api.error("❌ 응답에 내용이 없음")
             throw GeminiAPIError.noContent
         }
         

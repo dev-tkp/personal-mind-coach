@@ -127,12 +127,17 @@ class ChatViewModel {
         
         // AI 응답 생성
         do {
+            AppLogger.general.debug("메시지 전송 시작: \(trimmedText.prefix(50))")
+            
             let allMessages = getMessages()
             // 현재 브랜치 경로의 메시지들만 필터링
             var currentBranchMessages = getCurrentBranchMessages(from: allMessages)
             
+            AppLogger.general.debug("현재 브랜치 메시지 수: \(currentBranchMessages.count)")
+            
             // 컨텍스트 최적화: 토큰 수가 임계치를 초과하면 요약 생성
             if ContextOptimizer.exceedsThreshold(messages: currentBranchMessages) {
+                AppLogger.general.debug("컨텍스트 최적화 시작")
                 currentBranchMessages = await optimizeContext(messages: currentBranchMessages)
             }
             
@@ -142,10 +147,14 @@ class ChatViewModel {
                 backgroundSummary: latestBackground?.summaryText
             )
             
+            AppLogger.api.debug("API 호출 시작 - 메시지 수: \(messageContents.count)")
+            
             let responseText = try await apiService.generateContent(
                 messages: messageContents,
                 systemInstruction: systemPrompt
             )
+            
+            AppLogger.general.debug("API 응답 수신 완료: \(responseText.prefix(50))")
             
             // AI 응답 저장 (사용자 메시지의 자식으로 설정)
             // 브랜치인 경우: parentId는 사용자 메시지의 ID
@@ -167,8 +176,11 @@ class ChatViewModel {
                 await updateBackground()
             }
         } catch {
+            AppLogger.general.error("메시지 전송 실패: \(error.localizedDescription)")
+            
             if let geminiError = error as? GeminiAPIError {
                 errorMessage = geminiError.localizedDescription
+                AppLogger.api.error("Gemini API 에러: \(geminiError.localizedDescription)")
             } else if let urlError = error as? URLError {
                 switch urlError.code {
                 case .notConnectedToInternet, .networkConnectionLost:
@@ -178,8 +190,10 @@ class ChatViewModel {
                 default:
                     errorMessage = "네트워크 오류가 발생했습니다: \(urlError.localizedDescription)"
                 }
+                AppLogger.api.error("네트워크 에러: \(urlError.localizedDescription)")
             } else {
-                errorMessage = error.localizedDescription
+                errorMessage = "오류가 발생했습니다: \(error.localizedDescription)"
+                AppLogger.general.error("알 수 없는 에러: \(error)")
             }
             // 사용자 메시지는 이미 저장되었으므로 그대로 둠
         }
