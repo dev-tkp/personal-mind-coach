@@ -40,7 +40,7 @@ struct MessageInputBar: View {
         #if canImport(UIKit)
         .background(Color(UIColor.systemBackground))
         #else
-        .background(Color(.background))
+        .background(Color(NSColor.windowBackgroundColor))
         #endif
         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: -2)
     }
