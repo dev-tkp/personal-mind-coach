@@ -9,6 +9,7 @@ import SwiftUI
 
 struct MessageBubble: View {
     let message: Message
+    var onBranchTap: ((UUID) -> Void)? = nil
     
     var body: some View {
         HStack {
@@ -31,6 +32,13 @@ struct MessageBubble: View {
                             : .primary
                     )
                     .cornerRadius(16)
+                
+                if message.messageRole == .model, let onBranchTap = onBranchTap {
+                    BranchButton(messageId: message.id, onTap: {
+                        onBranchTap(message.id)
+                    })
+                    .padding(.top, 4)
+                }
                 
                 Text(message.createdAt, style: .time)
                     .font(.caption2)

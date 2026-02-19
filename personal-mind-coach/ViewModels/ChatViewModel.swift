@@ -96,15 +96,15 @@ class ChatViewModel {
         }
     }
     
-    func sendMessage(_ text: String) async {
+    func sendMessage(_ text: String, parentMessageId: UUID? = nil) async {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               let modelContext = modelContext else { return }
         
         isLoading = true
         errorMessage = nil
         
-        // 사용자 메시지 저장
-        let userMessage = Message(role: .user, content: text)
+        // 사용자 메시지 저장 (브랜치인 경우 parentId 설정)
+        let userMessage = Message(role: .user, content: text, parentId: parentMessageId)
         modelContext.insert(userMessage)
         
         do {
@@ -118,7 +118,9 @@ class ChatViewModel {
         // AI 응답 생성
         do {
             let allMessages = getMessages()
-            let messageContents = buildMessageContents(from: allMessages)
+            // 현재 브랜치 경로의 메시지들만 필터링
+            let currentBranchMessages = getCurrentBranchMessages(from: allMessages)
+            let messageContents = buildMessageContents(from: currentBranchMessages)
             let latestBackground = getLatestBackground()
             let systemPrompt = SystemPrompt.buildPrompt(
                 backgroundSummary: latestBackground?.summaryText
@@ -152,6 +154,47 @@ class ChatViewModel {
         }
         
         isLoading = false
+    }
+    
+    func createBranch(from parentMessageId: UUID, question: String) async {
+        await sendMessage(question, parentMessageId: parentMessageId)
+    }
+    
+    func returnToMainBranch() {
+        guard let modelContext = modelContext,
+              let session = currentSession else { return }
+        
+        session.currentMessageId = nil
+        session.updatedAt = Date()
+        
+        try? modelContext.save()
+    }
+    
+    func getCurrentBranchPath() -> [Message] {
+        guard let modelContext = modelContext,
+              let session = currentSession else { return [] }
+        
+        return BranchPathService.getBranchPath(
+            from: session.currentMessageId,
+            in: modelContext
+        )
+    }
+    
+    func isOnMainBranch() -> Bool {
+        return currentSession?.currentMessageId == nil
+    }
+    
+    private func getCurrentBranchMessages(from allMessages: [Message]) -> [Message] {
+        guard let modelContext = modelContext,
+              let session = currentSession else {
+            return allMessages.filter { $0.parentId == nil }
+        }
+        
+        return BranchPathService.filterMessagesForCurrentBranch(
+            allMessages: allMessages,
+            currentMessageId: session.currentMessageId,
+            in: modelContext
+        )
     }
     
     private func buildMessageContents(from messages: [Message]) -> [MessageContent] {
