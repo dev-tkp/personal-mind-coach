@@ -1,0 +1,13 @@
+# Appfile - 앱 식별자 및 인증 정보 설정
+# App Store Connect API Key는 Fastfile에서 app_store_connect_api_key 액션으로 설정합니다
+
+# 앱 식별자 (실제 앱에 맞게 수정하세요)
+# app_identifier("com.yourcompany.personalmindcoach")
+
+# 팀 ID는 Xcode의 Signing & Capabilities에서 확인 가능합니다
+# team_id("YOUR_TEAM_ID")
+
+# 참고: API 키 인증은 Fastfile에서 app_store_connect_api_key 액션을 사용합니다.
+# API 키 파일: fastlane/AuthKey_Q53SPL7242.p8
+# Key ID: Q53SPL7242
+# Issuer ID: 6f223f6e-9fcc-4da7-ba02-caf066f554b9

@@ -1,0 +1,136 @@
+# Fastfile - iOS 배포 자동화 설정
+# 시니어 개발자 스타일의 깔끔한 배포 파이프라인
+
+default_platform(:ios)
+
+platform :ios do
+  # 프로젝트 설정 (실제 프로젝트에 맞게 수정하세요)
+  PROJECT_NAME = "personal-mind-coach"
+  SCHEME = "personal-mind-coach"
+  XCODEPROJ = "#{PROJECT_NAME}.xcodeproj"
+  WORKSPACE = "#{PROJECT_NAME}.xcworkspace"
+
+  # App Store Connect API 키 설정
+  # Fastlane은 fastlane/ 디렉토리에서 AuthKey_*.p8 파일을 자동으로 찾습니다
+  # 또는 명시적으로 설정할 수 있습니다:
+  # api_key = app_store_connect_api_key(
+  #   key_id: "Q53SPL7242",
+  #   issuer_id: "6f223f6e-9fcc-4da7-ba02-caf066f554b9",
+  #   key_filepath: "./fastlane/AuthKey_Q53SPL7242.p8"
+  # )
+
+  # TestFlight 베타 배포
+  desc "TestFlight에 빌드 업로드"
+  lane :beta do
+    # 빌드 번호 자동 증가
+    increment_build_number(
+      xcodeproj: XCODEPROJ,
+      build_number: number_of_commits
+    )
+    
+    # 버전 번호 자동 증가 (선택사항)
+    # increment_version_number(
+    #   xcodeproj: XCODEPROJ,
+    #   version_number: "1.0.0"
+    # )
+    
+    # 빌드 및 .ipa 파일 생성
+    build_app(
+      workspace: WORKSPACE,
+      scheme: SCHEME,
+      export_method: "app-store",
+      output_directory: "./build",
+      output_name: "#{PROJECT_NAME}.ipa",
+      clean: true,
+      skip_codesigning: false,
+      skip_package_ipa: false
+    )
+    
+    # App Store Connect(TestFlight) 업로드
+    upload_to_testflight(
+      skip_waiting_for_build_processing: false,
+      skip_submission: false,
+      distribute_external: false,
+      notify_external_testers: false
+    )
+    
+    # Slack 등으로 알림 전송 (선택사항)
+    # slack(
+    #   message: "✅ #{PROJECT_NAME} 베타 빌드가 TestFlight에 업로드되었습니다!",
+    #   success: true
+    # )
+  end
+
+  # App Store 프로덕션 배포
+  desc "App Store에 프로덕션 빌드 업로드"
+  lane :release do
+    # 빌드 번호 자동 증가
+    increment_build_number(
+      xcodeproj: XCODEPROJ,
+      build_number: number_of_commits
+    )
+    
+    # 빌드 및 .ipa 파일 생성
+    build_app(
+      workspace: WORKSPACE,
+      scheme: SCHEME,
+      export_method: "app-store",
+      output_directory: "./build",
+      output_name: "#{PROJECT_NAME}.ipa",
+      clean: true
+    )
+    
+    # App Store Connect 업로드
+    upload_to_app_store(
+      skip_metadata: false,
+      skip_screenshots: false,
+      force: false,
+      submit_for_review: false  # 수동으로 리뷰 제출하려면 false
+    )
+  end
+
+  # 로컬 빌드만 (업로드 없음)
+  desc "로컬에만 빌드 (업로드 없음)"
+  lane :build_only do
+    increment_build_number(
+      xcodeproj: XCODEPROJ,
+      build_number: number_of_commits
+    )
+    
+    build_app(
+      workspace: WORKSPACE,
+      scheme: SCHEME,
+      export_method: "app-store",
+      output_directory: "./build",
+      output_name: "#{PROJECT_NAME}.ipa",
+      clean: true
+    )
+    
+    UI.success "✅ 빌드 완료! ./build/#{PROJECT_NAME}.ipa"
+  end
+
+  # 빌드 전 테스트 실행
+  desc "테스트 실행 후 TestFlight 배포"
+  lane :beta_with_tests do
+    # 테스트 실행
+    run_tests(
+      workspace: WORKSPACE,
+      scheme: SCHEME,
+      device: "iPhone 15"
+    )
+    
+    # 테스트 통과 시 배포
+    beta
+  end
+
+  # 빌드 번호만 증가 (배포 없음)
+  desc "빌드 번호만 증가"
+  lane :bump_build do
+    increment_build_number(
+      xcodeproj: XCODEPROJ,
+      build_number: number_of_commits
+    )
+    
+    UI.success "✅ 빌드 번호가 증가되었습니다."
+  end
+end
