@@ -6,7 +6,9 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 struct MessageInputBar: View {
     @Binding var text: String
@@ -35,7 +37,7 @@ struct MessageInputBar: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
-        .background(Color(UIColor.systemBackground))
+        .background(Color(uiColor: .systemBackground))
         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: -2)
     }
 }
