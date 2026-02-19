@@ -147,8 +147,10 @@ class ChatViewModel {
                 systemInstruction: systemPrompt
             )
             
-            // AI 응답 저장 (브랜치인 경우 parentId 설정)
-            let modelMessage = Message(role: .model, content: responseText, parentId: parentMessageId)
+            // AI 응답 저장 (사용자 메시지의 자식으로 설정)
+            // 브랜치인 경우: parentId는 사용자 메시지의 ID
+            // 메인인 경우: parentId는 nil
+            let modelMessage = Message(role: .model, content: responseText, parentId: parentMessageId != nil ? userMessage.id : nil)
             modelContext.insert(modelMessage)
             
             // 세션 업데이트
