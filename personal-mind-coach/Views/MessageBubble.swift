@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct MessageBubble: View {
     let message: Message
@@ -28,7 +29,7 @@ struct MessageBubble: View {
                     .background(
                         message.messageRole == .user
                             ? Color.blue
-                            : Color(.systemGray5)
+                            : Color(UIColor.systemGray5)
                     )
                     .foregroundColor(
                         message.messageRole == .user

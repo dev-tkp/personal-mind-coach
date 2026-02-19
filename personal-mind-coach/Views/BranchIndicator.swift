@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct BranchIndicator: View {
     let branchPath: [Message]
@@ -33,11 +34,11 @@ struct BranchIndicator: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(Color(.systemGray6))
+            .background(Color(UIColor.systemGray6))
             .overlay(
                 Rectangle()
                     .frame(height: 1)
-                    .foregroundColor(Color(.separator)),
+                    .foregroundColor(Color(UIColor.separator)),
                 alignment: .bottom
             )
         }
