@@ -20,50 +20,57 @@ struct ChatView: View {
     @State private var inputText = ""
     @State private var selectedBranchMessageId: UUID? = nil
     @State private var showBranchInput = false
+    @State private var showUndoToast = false
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // 브랜치 인디케이터
-                if !viewModel.isOnMainBranch() {
-                    BranchIndicator(
-                        branchPath: viewModel.getCurrentBranchPath(),
-                        onReturnToMain: {
-                            viewModel.returnToMainBranch()
-                        }
-                    )
-                }
-                
-                // 메시지 리스트
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
-                            ForEach(messages) { message in
-                                MessageBubble(
-                                    message: message,
-                                    onBranchTap: message.messageRole == .model ? { messageId in
-                                        selectedBranchMessageId = messageId
-                                        showBranchInput = true
-                                    } : nil
-                                )
-                                .id(message.id)
+            ZStack {
+                VStack(spacing: 0) {
+                    // 브랜치 인디케이터
+                    if !viewModel.isOnMainBranch() {
+                        BranchIndicator(
+                            branchPath: viewModel.getCurrentBranchPath(),
+                            onReturnToMain: {
+                                viewModel.returnToMainBranch()
                             }
-                            
-                            if viewModel.isLoading {
-                                HStack {
-                                    ProgressView()
-                                        .padding()
-                                    Text("응답 중...")
-                                        .foregroundColor(.secondary)
+                        )
+                    }
+                    
+                    // 메시지 리스트
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(spacing: 12) {
+                                ForEach(messages) { message in
+                                    MessageBubble(
+                                        message: message,
+                                        onBranchTap: message.messageRole == .model ? { messageId in
+                                            selectedBranchMessageId = messageId
+                                            showBranchInput = true
+                                        } : nil,
+                                        onDelete: { messageId in
+                                            viewModel.deleteMessage(messageId)
+                                            showUndoToast = true
+                                        }
+                                    )
+                                    .id(message.id)
+                                }
+                                
+                                if viewModel.isLoading {
+                                    HStack {
+                                        ProgressView()
+                                            .padding()
+                                        Text("응답 중...")
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
                             }
+                            .padding()
                         }
-                        .padding()
-                    }
-                    .onChange(of: messages.count) { _, _ in
-                        if let lastMessage = messages.last {
-                            withAnimation {
-                                proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                        .onChange(of: messages.count) { _, _ in
+                            if let lastMessage = messages.last {
+                                withAnimation {
+                                    proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                                }
                             }
                         }
                     }
@@ -115,6 +122,18 @@ struct ChatView: View {
                             }
                         }
                     )
+                }
+                
+                // Undo Toast
+                if showUndoToast {
+                    VStack {
+                        Spacer()
+                        UndoToast {
+                            viewModel.undoDelete()
+                            showUndoToast = false
+                        }
+                        .padding(.bottom, 100)
+                    }
                 }
             }
             .navigationTitle("마인드 코치")

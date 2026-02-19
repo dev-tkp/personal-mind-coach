@@ -10,6 +10,9 @@ import SwiftUI
 struct MessageBubble: View {
     let message: Message
     var onBranchTap: ((UUID) -> Void)? = nil
+    var onDelete: ((UUID) -> Void)? = nil
+    
+    @State private var showDeleteConfirmation = false
     
     var body: some View {
         HStack {
@@ -32,6 +35,9 @@ struct MessageBubble: View {
                             : .primary
                     )
                     .cornerRadius(16)
+                    .onLongPressGesture {
+                        showDeleteConfirmation = true
+                    }
                 
                 if message.messageRole == .model, let onBranchTap = onBranchTap {
                     BranchButton(messageId: message.id, onTap: {
@@ -48,6 +54,18 @@ struct MessageBubble: View {
             if message.messageRole == .model {
                 Spacer()
             }
+        }
+        .confirmationDialog(
+            "메시지 삭제",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("삭제", role: .destructive) {
+                onDelete?(message.id)
+            }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("이 메시지와 하위 브랜치를 모두 삭제하시겠습니까?")
         }
     }
 }
