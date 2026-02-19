@@ -14,13 +14,18 @@ struct ChatView: View {
         filter: #Predicate<Message> { !$0.isDeleted },
         sort: \Message.createdAt,
         order: .forward
-    ) private var messages: [Message]
+    ) private var allMessages: [Message]
     
     @State private var viewModel = ChatViewModel()
     @State private var inputText = ""
     @State private var selectedBranchMessageId: UUID? = nil
     @State private var showBranchInput = false
     @State private var showUndoToast = false
+    
+    // 현재 브랜치의 메시지만 필터링
+    private var messages: [Message] {
+        viewModel.getCurrentBranchMessages(from: allMessages)
+    }
     
     var body: some View {
         NavigationStack {
@@ -74,13 +79,12 @@ struct ChatView: View {
                             }
                         }
                     }
-                }
-                
-                Divider()
-                
-                // 입력 바
-                if showBranchInput {
-                    VStack(spacing: 8) {
+                    
+                    Divider()
+                    
+                    // 입력 바
+                    if showBranchInput {
+                        VStack(spacing: 8) {
                         HStack {
                             Text("브랜치 질문:")
                                 .font(.caption)

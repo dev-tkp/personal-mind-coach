@@ -26,12 +26,47 @@ class GeminiAPIService: ObservableObject {
         messages: [MessageContent],
         systemInstruction: String
     ) async throws -> String {
+        let maxRetries = 3
+        var lastError: Error?
+        
+        for attempt in 0..<maxRetries {
+            do {
+                return try await performRequest(messages: messages, systemInstruction: systemInstruction)
+            } catch GeminiAPIError.rateLimitExceeded {
+                lastError = error
+                if attempt < maxRetries - 1 {
+                    // Exponential backoff: 2^attempt 초 대기
+                    let delay = pow(2.0, Double(attempt))
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+                throw error
+            } catch {
+                lastError = error
+                if attempt < maxRetries - 1 && (error as? GeminiAPIError) == .serverError(500) {
+                    // 서버 에러의 경우 재시도
+                    let delay = pow(2.0, Double(attempt))
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+                throw error
+            }
+        }
+        
+        throw lastError ?? GeminiAPIError.invalidResponse
+    }
+    
+    private func performRequest(
+        messages: [MessageContent],
+        systemInstruction: String
+    ) async throws -> String {
         let apiKey = try apiKey
         let url = URL(string: "\(baseURL)/\(model):generateContent")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+        request.timeoutInterval = 30.0
         
         let requestBody: [String: Any] = [
             "contents": messages.map { message in
@@ -53,11 +88,21 @@ class GeminiAPIService: ObservableObject {
         
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
         
+        AppLogger.api.debug("📤 Gemini API Request to \(url.absoluteString)")
+        #if DEBUG
+        if let jsonData = request.httpBody,
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            AppLogger.api.debug("Request body: \(jsonString.prefix(500))...")
+        }
+        #endif
+        
         let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw GeminiAPIError.invalidResponse
         }
+        
+        AppLogger.api.debug("📥 Gemini API Response Status: \(httpResponse.statusCode)")
         
         guard (200...299).contains(httpResponse.statusCode) else {
             if httpResponse.statusCode == 429 {
@@ -66,7 +111,7 @@ class GeminiAPIService: ObservableObject {
                 throw GeminiAPIError.unauthorized
             } else if httpResponse.statusCode == 400 {
                 if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    print("Bad Request Error: \(errorData)")
+                    print("❌ Bad Request Error: \(errorData)")
                 }
                 throw GeminiAPIError.badRequest
             } else {
@@ -80,6 +125,10 @@ class GeminiAPIService: ObservableObject {
         guard let candidate = responseModel.candidates.first,
               let text = candidate.content.parts.first?.text else {
             throw GeminiAPIError.noContent
+        }
+        
+        if let usage = responseModel.usageMetadata {
+            AppLogger.api.info("📊 Token Usage: prompt=\(usage.promptTokenCount ?? 0), candidates=\(usage.candidatesTokenCount ?? 0), total=\(usage.totalTokenCount ?? 0)")
         }
         
         return text

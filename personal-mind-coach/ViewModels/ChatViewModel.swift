@@ -93,20 +93,28 @@ class ChatViewModel {
             
             messageCountSinceLastBackgroundUpdate = 0
         } catch {
-            print("백그라운드 업데이트 실패: \(error.localizedDescription)")
+            AppLogger.background.error("백그라운드 업데이트 실패: \(error.localizedDescription)")
             // 백그라운드 업데이트 실패는 치명적이지 않으므로 계속 진행
         }
     }
     
     func sendMessage(_ text: String, parentMessageId: UUID? = nil) async {
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              let modelContext = modelContext else { return }
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
+            errorMessage = "메시지를 입력해주세요."
+            return
+        }
+        
+        guard let modelContext = modelContext else {
+            errorMessage = "데이터베이스 연결 오류가 발생했습니다."
+            return
+        }
         
         isLoading = true
         errorMessage = nil
         
         // 사용자 메시지 저장 (브랜치인 경우 parentId 설정)
-        let userMessage = Message(role: .user, content: text, parentId: parentMessageId)
+        let userMessage = Message(role: .user, content: trimmedText, parentId: parentMessageId)
         modelContext.insert(userMessage)
         
         do {
@@ -139,8 +147,8 @@ class ChatViewModel {
                 systemInstruction: systemPrompt
             )
             
-            // AI 응답 저장
-            let modelMessage = Message(role: .model, content: responseText)
+            // AI 응답 저장 (브랜치인 경우 parentId 설정)
+            let modelMessage = Message(role: .model, content: responseText, parentId: parentMessageId)
             modelContext.insert(modelMessage)
             
             // 세션 업데이트
@@ -157,7 +165,20 @@ class ChatViewModel {
                 await updateBackground()
             }
         } catch {
-            errorMessage = error.localizedDescription
+            if let geminiError = error as? GeminiAPIError {
+                errorMessage = geminiError.localizedDescription
+            } else if let urlError = error as? URLError {
+                switch urlError.code {
+                case .notConnectedToInternet, .networkConnectionLost:
+                    errorMessage = "인터넷 연결을 확인해주세요."
+                case .timedOut:
+                    errorMessage = "요청 시간이 초과되었습니다. 다시 시도해주세요."
+                default:
+                    errorMessage = "네트워크 오류가 발생했습니다: \(urlError.localizedDescription)"
+                }
+            } else {
+                errorMessage = error.localizedDescription
+            }
             // 사용자 메시지는 이미 저장되었으므로 그대로 둠
         }
         
@@ -192,7 +213,7 @@ class ChatViewModel {
         return currentSession?.currentMessageId == nil
     }
     
-    private func getCurrentBranchMessages(from allMessages: [Message]) -> [Message] {
+    func getCurrentBranchMessages(from allMessages: [Message]) -> [Message] {
         guard let modelContext = modelContext,
               let session = currentSession else {
             return allMessages.filter { $0.parentId == nil }
@@ -249,16 +270,31 @@ class ChatViewModel {
         
         guard let message = try? modelContext.fetch(descriptor).first else { return }
         
-        message.isDeleted = false
+        // 메시지와 하위 브랜치 모두 복원
+        undoDeleteRecursively(message, in: modelContext)
         
-        // 백그라운드 복원 (간단한 버전 - 실제로는 이전 버전으로 롤백해야 함)
-        // 여기서는 백그라운드를 다시 업데이트하는 것으로 대체
+        // 백그라운드 복원
         Task {
             await updateBackground()
         }
         
         deletedMessageId = nil
         try? modelContext.save()
+    }
+    
+    private func undoDeleteRecursively(_ message: Message, in modelContext: ModelContext) {
+        message.isDeleted = false
+        
+        // 자식 메시지들도 복원
+        let childrenDescriptor = FetchDescriptor<Message>(
+            predicate: #Predicate<Message> { $0.parentId == message.id && $0.isDeleted }
+        )
+        
+        if let children = try? modelContext.fetch(childrenDescriptor) {
+            for child in children {
+                undoDeleteRecursively(child, in: modelContext)
+            }
+        }
     }
     
     private func rollbackBackground(for deletedMessageId: UUID) {
@@ -308,7 +344,7 @@ class ChatViewModel {
             modelContext.insert(newBackground)
             try modelContext.save()
         } catch {
-            print("백그라운드 롤백 실패: \(error.localizedDescription)")
+            AppLogger.background.error("백그라운드 롤백 실패: \(error.localizedDescription)")
         }
     }
     
@@ -346,7 +382,7 @@ class ChatViewModel {
             
             return [summaryMessage] + recent
         } catch {
-            print("컨텍스트 최적화 실패: \(error.localizedDescription)")
+            AppLogger.general.error("컨텍스트 최적화 실패: \(error.localizedDescription)")
             return messages
         }
     }
