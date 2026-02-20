@@ -50,6 +50,7 @@ struct MessageBubble: View {
                         showDeleteConfirmation = true
                     }
                     .accessibilityLabel(message.messageRole == .user ? "사용자 메시지" : "상담가 응답")
+                    .accessibilityIdentifier(message.messageRole == .user ? "userMessage" : "modelMessage")
                     .accessibilityHint("길게 눌러 삭제할 수 있습니다")
                 
                 if message.messageRole == .model, let onBranchTap = onBranchTap {

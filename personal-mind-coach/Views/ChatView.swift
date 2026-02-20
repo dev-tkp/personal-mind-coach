@@ -44,8 +44,9 @@ struct ChatView: View {
                     // 메시지 리스트
                     ScrollViewReader { proxy in
                         ScrollView {
-                            LazyVStack(spacing: 16) {
-                                if messages.isEmpty && !viewModel.isLoading {
+                            GeometryReader { geo in
+                                LazyVStack(spacing: 16) {
+                                    if messages.isEmpty && !viewModel.isLoading {
                                     VStack(spacing: 12) {
                                         Image(systemName: "bubble.left.and.bubble.right")
                                             .font(.system(size: 48))
@@ -61,35 +62,51 @@ struct ChatView: View {
                                     .padding(.top, 60)
                                 }
                                 
-                                ForEach(messages) { message in
-                                    MessageBubble(
-                                        message: message,
-                                        onBranchTap: message.messageRole == .model ? { messageId in
-                                            selectedBranchMessageId = messageId
-                                            showBranchInput = true
-                                        } : nil,
-                                        onDelete: { messageId in
-                                            viewModel.deleteMessage(messageId)
-                                            showUndoToast = true
+                                    ForEach(messages) { message in
+                                        HStack {
+                                            if message.messageRole == .user {
+                                                Spacer()
+                                            }
+                                            CloudBubbleView(
+                                                message: message,
+                                                availableWidth: geo.size.width,
+                                                onBranchTap: (message.messageRole == .model && viewModel.isOnMainBranch()) ? { messageId in
+                                                    viewModel.enterBranchMode(from: messageId)
+                                                    selectedBranchMessageId = messageId
+                                                    showBranchInput = true
+                                                } : nil,
+                                                onDelete: { messageId in
+                                                    withAnimation(.cloudDissolve) {
+                                                        viewModel.deleteMessage(messageId)
+                                                    }
+                                                    showUndoToast = true
+                                                }
+                                            )
+                                            if message.messageRole == .model {
+                                                Spacer()
+                                            }
                                         }
-                                    )
-                                    .id(message.id)
-                                }
-                                
-                                if viewModel.isLoading {
+                                        .id(message.id)
+                                        .transition(.opacity.combined(with: .scale))
+                                    }
+                                    
+                                    if viewModel.isLoading {
                                     HStack(spacing: 8) {
                                         ProgressView()
                                             .scaleEffect(0.8)
                                         Text("응답 중...")
                                             .font(.subheadline)
                                             .foregroundColor(.secondary)
+                                            .accessibilityIdentifier("loadingIndicator")
                                     }
                                     .padding(.vertical, 8)
+                                    }
                                 }
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
                         }
+                        .accessibilityIdentifier("ChatView")
                         .onChange(of: messages.count) { _, _ in
                             if let lastMessage = messages.last {
                                 withAnimation(.easeOut(duration: 0.3)) {
@@ -117,12 +134,16 @@ struct ChatView: View {
                                 Text("브랜치 질문:")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
+                                    .accessibilityIdentifier("branchInputLabel")
                                 Spacer()
                                 Button("취소") {
+                                    // 브랜치 모드 취소: 메인 브랜치로 복귀
+                                    viewModel.returnToMainBranch()
                                     showBranchInput = false
                                     selectedBranchMessageId = nil
                                 }
                                 .font(.caption)
+                                .accessibilityIdentifier("cancelBranchButton")
                             }
                             .padding(.horizontal)
                             
@@ -133,12 +154,17 @@ struct ChatView: View {
                                     Task {
                                         if let parentId = selectedBranchMessageId {
                                             await viewModel.createBranch(from: parentId, question: text)
+                                            // 브랜치 생성 후에도 브랜치 입력 모드 유지 (브랜치 뷰로 전환됨)
+                                            // 하지만 입력 바는 일반 모드로 복귀
+                                            inputText = ""
+                                            showBranchInput = false
+                                            selectedBranchMessageId = nil
                                         } else {
                                             await viewModel.sendMessage(text)
+                                            inputText = ""
+                                            showBranchInput = false
+                                            selectedBranchMessageId = nil
                                         }
-                                        inputText = ""
-                                        showBranchInput = false
-                                        selectedBranchMessageId = nil
                                     }
                                 }
                             )
@@ -170,6 +196,7 @@ struct ChatView: View {
                 }
             }
             .navigationTitle("마인드 코치")
+            .accessibilityIdentifier("ChatView")
             #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif

@@ -27,6 +27,7 @@ struct BranchIndicator: View {
                     .foregroundColor(.blue)
                 }
                 .accessibilityLabel("메인으로 돌아가기")
+                .accessibilityIdentifier("returnToMainButton")
                 
                 Spacer()
                 

@@ -22,6 +22,8 @@ struct MessageInputBar: View {
                 .lineLimit(1...5)
                 .disabled(isLoading)
                 .accessibilityLabel("메시지 입력창")
+                .accessibilityIdentifier("messageInputField")
+                .accessibilityValue(text.isEmpty ? "비어있음" : text)
             
             Button {
                 guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
@@ -33,6 +35,8 @@ struct MessageInputBar: View {
             }
             .disabled(text.isEmpty || isLoading)
             .accessibilityLabel("전송")
+            .accessibilityIdentifier("sendButton")
+            .accessibilityValue(text.isEmpty ? "비활성화" : "활성화")
             .accessibilityHint(text.isEmpty ? "메시지를 입력하세요" : "메시지 전송")
         }
         .padding(.horizontal)

@@ -69,7 +69,8 @@ class BranchPathService {
     ) -> [Message] {
         guard let currentMessageId = currentMessageId else {
             // 메인 브랜치: parentId가 nil인 메시지들만
-            return allMessages.filter { $0.parentId == nil }
+            let mainBranchMessages = allMessages.filter { $0.parentId == nil }
+            return mainBranchMessages.sorted { $0.createdAt < $1.createdAt }
         }
         
         let branchPath = getBranchPath(from: currentMessageId, in: modelContext)
@@ -77,14 +78,33 @@ class BranchPathService {
         
         // 브랜치 경로에 포함된 메시지 + 해당 브랜치의 모든 하위 메시지들 포함
         var branchMessages: [Message] = []
+        var seenIds = Set<UUID>()  // 중복 방지
+        
+        // 1. 브랜치 경로에 직접 포함된 메시지들 추가
         for message in allMessages {
-            // 브랜치 경로에 직접 포함된 메시지
-            if branchPathIds.contains(message.id) {
+            if branchPathIds.contains(message.id) && !seenIds.contains(message.id) {
                 branchMessages.append(message)
-            } else if let parentId = message.parentId {
+                seenIds.insert(message.id)
+            }
+        }
+        
+        // 2. 브랜치 경로의 메시지들을 부모로 가진 하위 메시지들 추가
+        for message in allMessages {
+            if seenIds.contains(message.id) {
+                continue
+            }
+            
+            if let parentId = message.parentId {
                 // 부모가 브랜치 경로에 포함되어 있으면 하위 메시지로 포함
-                if branchPathIds.contains(parentId) || isDescendantOfBranch(messageId: message.id, branchPathIds: branchPathIds, allMessages: allMessages) {
+                if branchPathIds.contains(parentId) {
                     branchMessages.append(message)
+                    seenIds.insert(message.id)
+                } else {
+                    // 재귀적으로 부모를 확인하여 브랜치 경로의 하위인지 확인
+                    if isDescendantOfBranch(messageId: message.id, branchPathIds: branchPathIds, allMessages: allMessages) {
+                        branchMessages.append(message)
+                        seenIds.insert(message.id)
+                    }
                 }
             }
         }

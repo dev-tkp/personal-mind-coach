@@ -16,17 +16,20 @@ class GeminiAPIService: ObservableObject {
         get throws {
             // 1. Keychain에서 API 키 확인
             if let key = try? KeychainService.load(), !key.isEmpty {
+                AppLogger.api.debug("✅ Keychain에서 API 키 로드 성공")
                 return key
             }
             
             // 2. 환경변수에서 API 키 확인
             if let envKey = ProcessInfo.processInfo.environment["GEMINI_API_KEY"], !envKey.isEmpty {
+                AppLogger.api.debug("✅ 환경변수에서 API 키 발견, Keychain에 저장 중...")
                 // 환경변수에서 찾은 키를 Keychain에 저장
                 try? KeychainService.save(envKey)
                 return envKey
             }
             
             // 3. API 키가 없으면 에러 발생
+            AppLogger.api.error("❌ API 키를 찾을 수 없습니다. Keychain과 환경변수를 확인해주세요.")
             throw GeminiAPIError.unauthorized
         }
     }
@@ -40,7 +43,22 @@ class GeminiAPIService: ObservableObject {
         
         for attempt in 0..<maxRetries {
             do {
-                return try await performRequest(messages: messages, systemInstruction: systemInstruction)
+                let response = try await performRequest(messages: messages, systemInstruction: systemInstruction)
+                
+                // 빈 응답 체크 및 재시도
+                if response.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    AppLogger.api.warning("⚠️ 빈 응답 수신 (시도 \(attempt + 1)/\(maxRetries))")
+                    if attempt < maxRetries - 1 {
+                        let delay = pow(2.0, Double(attempt))
+                        AppLogger.api.debug("⏳ \(delay)초 후 재시도...")
+                        try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        continue
+                    } else {
+                        throw GeminiAPIError.noContent
+                    }
+                }
+                
+                return response
             } catch let error as GeminiAPIError {
                 lastError = error
                 
@@ -51,6 +69,9 @@ class GeminiAPIService: ObservableObject {
                     shouldRetry = true
                 case .serverError(let code) where code == 500:
                     shouldRetry = true
+                case .noContent:
+                    // 빈 응답도 재시도
+                    shouldRetry = attempt < maxRetries - 1
                 default:
                     shouldRetry = false
                 }
@@ -58,6 +79,7 @@ class GeminiAPIService: ObservableObject {
                 if shouldRetry && attempt < maxRetries - 1 {
                     // Exponential backoff: 2^attempt 초 대기
                     let delay = pow(2.0, Double(attempt))
+                    AppLogger.api.debug("⏳ \(delay)초 후 재시도...")
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                     continue
                 }
@@ -76,12 +98,27 @@ class GeminiAPIService: ObservableObject {
         systemInstruction: String
     ) async throws -> String {
         let apiKey = try apiKey
+        
+        // API 키 검증 로깅 (키의 일부만 표시)
+        let maskedKey = String(apiKey.prefix(10)) + "..." + String(apiKey.suffix(4))
+        AppLogger.api.debug("🔑 API 키 사용 중: \(maskedKey)")
+        
         let url = URL(string: "\(baseURL)/\(model):generateContent")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         request.timeoutInterval = 30.0
+        
+        // 헤더 확인 로깅
+        #if DEBUG
+        if let headerValue = request.value(forHTTPHeaderField: "x-goog-api-key") {
+            let maskedHeader = String(headerValue.prefix(10)) + "..." + String(headerValue.suffix(4))
+            AppLogger.api.debug("📋 x-goog-api-key 헤더 설정됨: \(maskedHeader)")
+        } else {
+            AppLogger.api.error("❌ x-goog-api-key 헤더가 설정되지 않음!")
+        }
+        #endif
         
         let requestBody: [String: Any] = [
             "contents": messages.map { message in
@@ -107,7 +144,29 @@ class GeminiAPIService: ObservableObject {
         #if DEBUG
         if let jsonData = request.httpBody,
            let jsonString = String(data: jsonData, encoding: .utf8) {
-            AppLogger.api.debug("Request body: \(jsonString.prefix(500))...")
+            // 요청 본문 전체 로깅 (너무 길면 일부만)
+            let fullBody = jsonString
+            if fullBody.count > 2000 {
+                AppLogger.api.debug("Request body (첫 1000자): \(fullBody.prefix(1000))...")
+                AppLogger.api.debug("Request body (마지막 500자): ...\(fullBody.suffix(500))")
+            } else {
+                AppLogger.api.debug("Request body: \(fullBody)")
+            }
+            
+            // 메시지 구조 확인
+            if let jsonObject = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+               let contents = jsonObject["contents"] as? [[String: Any]] {
+                AppLogger.api.debug("📋 요청 메시지 구조:")
+                for (index, content) in contents.enumerated() {
+                    let role = content["role"] as? String ?? "unknown"
+                    if let parts = content["parts"] as? [[String: Any]],
+                       let firstPart = parts.first,
+                       let text = firstPart["text"] as? String {
+                        let preview = text.prefix(100)
+                        AppLogger.api.debug("  [\(index)] role=\(role), text=\(preview)\(text.count > 100 ? "..." : "")")
+                    }
+                }
+            }
         }
         #endif
         
@@ -130,7 +189,11 @@ class GeminiAPIService: ObservableObject {
                 AppLogger.api.error("❌ API 에러 응답 (\(httpResponse.statusCode)): \(errorString.prefix(500))")
             }
             
-            if httpResponse.statusCode == 429 {
+            // 403 에러에 대한 특별 처리 추가
+            if httpResponse.statusCode == 403 {
+                AppLogger.api.error("❌ 403 Forbidden: API 키 권한이 없거나 잘못되었습니다. API 키를 확인해주세요.")
+                throw GeminiAPIError.unauthorized  // 403도 인증 문제로 처리
+            } else if httpResponse.statusCode == 429 {
                 throw GeminiAPIError.rateLimitExceeded
             } else if httpResponse.statusCode == 401 {
                 throw GeminiAPIError.unauthorized
@@ -155,9 +218,65 @@ class GeminiAPIService: ObservableObject {
             throw GeminiAPIError.decodingError
         }
         
-        guard let candidate = responseModel.candidates.first,
-              let text = candidate.content.parts.first?.text else {
-            AppLogger.api.error("❌ 응답에 내용이 없음")
+        guard let candidate = responseModel.candidates.first else {
+            AppLogger.api.error("❌ 응답에 candidate가 없음")
+            // 응답 데이터 전체 로깅
+            if let jsonString = String(data: data, encoding: .utf8) {
+                AppLogger.api.error("응답 데이터 전체: \(jsonString)")
+            }
+            throw GeminiAPIError.noContent
+        }
+        
+        // finishReason 확인
+        if let finishReason = candidate.finishReason, finishReason != "STOP" {
+            AppLogger.api.warning("⚠️ Finish reason: \(finishReason)")
+        }
+        
+        // 디버깅: 응답 구조 확인
+        AppLogger.api.debug("📋 Candidate 구조 확인:")
+        AppLogger.api.debug("  - finishReason: \(candidate.finishReason ?? "nil")")
+        AppLogger.api.debug("  - content.role: \(candidate.content.role)")
+        AppLogger.api.debug("  - content.parts 개수: \(candidate.content.parts.count)")
+        
+        for (index, part) in candidate.content.parts.enumerated() {
+            AppLogger.api.debug("  - parts[\(index)].text: \(part.text?.prefix(100) ?? "nil")")
+        }
+        
+        // 텍스트 추출 시도
+        var text: String? = nil
+        
+        // 방법 1: parts 배열에서 text 찾기
+        for part in candidate.content.parts {
+            if let partText = part.text, !partText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                text = partText
+                break
+            }
+        }
+        
+        // 방법 2: parts가 비어있거나 text가 없는 경우 응답 데이터 직접 확인
+        if text == nil {
+            AppLogger.api.warning("⚠️ parts에서 text를 찾을 수 없음. 응답 데이터 재확인 중...")
+            if let jsonString = String(data: data, encoding: .utf8),
+               let jsonData = jsonString.data(using: .utf8),
+               let jsonObject = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+               let candidates = jsonObject["candidates"] as? [[String: Any]],
+               let firstCandidate = candidates.first,
+               let content = firstCandidate["content"] as? [String: Any],
+               let parts = content["parts"] as? [[String: Any]],
+               let firstPart = parts.first,
+               let partText = firstPart["text"] as? String,
+               !partText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                text = partText
+                AppLogger.api.debug("✅ JSON 직접 파싱으로 텍스트 추출 성공")
+            }
+        }
+        
+        guard let finalText = text, !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            AppLogger.api.error("❌ 응답에 내용이 없음 (finishReason: \(candidate.finishReason ?? "unknown"))")
+            // 응답 데이터 전체 로깅
+            if let jsonString = String(data: data, encoding: .utf8) {
+                AppLogger.api.error("응답 데이터 전체: \(jsonString.prefix(2000))")
+            }
             throw GeminiAPIError.noContent
         }
         
@@ -165,7 +284,7 @@ class GeminiAPIService: ObservableObject {
             AppLogger.api.info("📊 Token Usage: prompt=\(usage.promptTokenCount ?? 0), candidates=\(usage.candidatesTokenCount ?? 0), total=\(usage.totalTokenCount ?? 0)")
         }
         
-        return text
+        return finalText
     }
 }
 
@@ -192,6 +311,7 @@ struct Content: Codable {
 
 struct Part: Codable {
     let text: String?
+    let thoughtSignature: String?  // Gemini 3.0의 새로운 필드
 }
 
 struct SafetyRating: Codable {

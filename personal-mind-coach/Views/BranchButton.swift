@@ -27,6 +27,7 @@ struct BranchButton: View {
             .cornerRadius(10)
         }
         .accessibilityLabel("여기서 더 물어보기")
+        .accessibilityIdentifier("branchButton")
         .accessibilityHint("이 답변에 대해 추가 질문을 할 수 있습니다")
     }
 }
